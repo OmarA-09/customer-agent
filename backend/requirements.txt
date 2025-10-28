@@ -1,0 +1,14 @@
+langgraph
+langgraph-prebuilt
+langgraph-sdk
+langsmith
+langchain-community
+langchain-core
+langchain-openai
+notebook
+trustcall
+langgraph-cli[inmem]
+
+flask
+flask-cors
+dotenv

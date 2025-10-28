@@ -1,0 +1,10 @@
+{
+  "graphs": {
+    "routing_agent": "./routing_agent.py:graph_no_memory"
+  },
+  "env": "./.env",
+  "python_version": "3.12",
+  "dependencies": [
+    "."
+  ]
+}
