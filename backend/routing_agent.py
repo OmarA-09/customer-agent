@@ -1,90 +1,98 @@
 import os
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
-from langgraph.graph import MessagesState, StateGraph, START
-from langgraph.prebuilt import tools_condition, ToolNode
-from langchain_core.messages import HumanMessage, SystemMessage
+from langgraph.graph import MessagesState, StateGraph, START, END
+from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 from langgraph.checkpoint.memory import MemorySaver
 
-# Load environment variables from .env file
 load_dotenv()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-def sentiment_analysis_tool(review_text: str) -> str:
-    """Analyze whether a customer's review or complaint is positive, negative, or neutral.
-
-    Args:
-        review_text: The full text of the customer review or complaint.
-
-    Returns:
-        A string describing the overall sentiment of the review (e.g., positive/negative).
-    """
-    return "Dummy sentiment: positive (placeholder)."
-
-def design_doc_tool(pdf_or_description: str) -> str:
-    """Extract fitting dimensions from a design document or schematic and summarize them.
-
-    Args:
-        pdf_or_description: Content from a design document, either in PDF text or detailed description.
-
-    Returns:
-        A CSV-like string with all fitting dimensions found in the document.
-    """
-    return "Dimensions: cabinet_height=90cm, cabinet_width=60cm, ... (dummy data)."
-
-def warranty_tool(product_question: str) -> str:
-    """Answer customer questions about refunds or warranties for specific products based on company policy.
-
-    Args:
-        product_question: The customer’s text asking about refund or warranty (e.g., product name, policy question).
-
-    Returns:
-        A string summarizing the relevant refund or warranty information for the given product.
-    """
-    return "Warranty: 12 months. Refundable within 30 days if in original packaging. (placeholder)."
-
-
-tools = [sentiment_analysis_tool, design_doc_tool, warranty_tool]
-
-# Initialize the LLM with API key and model name
 llm = ChatOpenAI(model="gpt-4o", openai_api_key=OPENAI_API_KEY)
-llm_with_tools = llm.bind_tools(tools)
 
-# System prompt describing the agent's task
-sys_msg = SystemMessage(content="You are a helpful assistant who selects and calls the appropriate tool based on the user's request.")
+# ------------------------------
+# Specialized processing nodes
+# ------------------------------
 
-# Assistant function: calls the LLM with tools
-def assistant(state: MessagesState):
-    return {"messages": [llm_with_tools.invoke([sys_msg] + state["messages"])]}
+# Dummy implementations of specialized nodes
+def sentiment_node(state: MessagesState):
+    last_message = state["messages"][-1].content.lower()
+    # In real code, call GCP sentiment model here
+    sentiment = "positive" if "good" in last_message else "negative or neutral"
+    return {"messages": [AIMessage(content=f"Sentiment analysis result: {sentiment}")]}
 
-# Build the LangGraph state graph
+def design_node(state: MessagesState):
+    # Stub: Call Gemini PDF endpoint and store/handle context here
+    return {"messages": [AIMessage(content="Design doc processed with extracted dimensions (dummy).")]}
+
+def policy_node(state: MessagesState):
+    # Stub: Call warranty/refund LLM model here
+    return {"messages": [AIMessage(content="Policy info: Warranty is 12 months standard (dummy).")]}
+
+# ------------------------------
+# Classifier node
+# ------------------------------
+
+# --- classifier node (normal node) ---
+def classifier_node(state: MessagesState):
+    user_msg = state["messages"][-1].content
+    sys_msg = SystemMessage(content=(
+        "You are an intelligent classifier. The user query will be one of: "
+        "'sentiment' if it's a review or complaint, "
+        "'design' if it's about design documents or schematics, "
+        "or 'policy' if it's about refunds or warranty questions. "
+        "Return one word: sentiment, design, or policy."
+    ))
+    reply = llm.invoke([sys_msg, HumanMessage(content=user_msg)])
+    classified = reply.content.strip().lower()
+
+    if classified not in ("sentiment", "design", "policy"):
+        classified = "policy"
+
+    return {"next": classified}
+
+def route_from_classifier(state):
+    return state["next"] 
+
+# ------------------------------
+# Build LangGraph
+# ------------------------------
+
+
 builder = StateGraph(MessagesState)
-builder.add_node("assistant", assistant)
-builder.add_node("tools", ToolNode(tools))
+builder.add_node("classifier", classifier_node)
+builder.add_node("sentiment", sentiment_node)
+builder.add_node("design", design_node)
+builder.add_node("policy", policy_node)
 
-builder.add_edge(START, "assistant")
-builder.add_conditional_edges("assistant", tools_condition)
-builder.add_edge("tools", "assistant")
+builder.add_edge(START, "classifier")
+builder.add_conditional_edges("classifier", route_from_classifier, {
+    "sentiment": "sentiment",
+    "design": "design",
+    "policy": "policy",
+})
+builder.add_edge("sentiment", END)
+builder.add_edge("design", END)
+builder.add_edge("policy", END)
 
+# ------------------------------
+# Compile with optional memory checkpoint
+# ------------------------------
 
-# switching between studio
 use_custom_checkpoint = os.getenv("USE_CUSTOM_CHECKPOINT", "true").lower() == "true"
-
 if use_custom_checkpoint:
     memory = MemorySaver()
-    graph_with_memory = builder.compile(checkpointer=memory)
+    graph_with_checkpoint = builder.compile(checkpointer=memory)
 else:
-    graph_no_memory = builder.compile()  # Let STUDIO platform handle checkpointing
-
-
-# graph_with_memory = builder.compile(checkpointer=memory)
+    graph_studio = builder.compile()
 
 class RoutingAgent:
     def __init__(self):
-        self.graph = graph_with_memory
+        self.graph = graph_with_checkpoint
 
     def handle_message(self, message: str, thread_id: str):
         messages = [HumanMessage(content=message)]
         config = {"configurable": {"thread_id": thread_id}}
         result = self.graph.invoke({"messages": messages}, config)
         return result['messages'][-1].content
+
