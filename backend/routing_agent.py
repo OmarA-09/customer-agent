@@ -10,38 +10,38 @@ from langgraph.checkpoint.memory import MemorySaver
 load_dotenv()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-def sentiment_analysis_tool(text: str) -> str:
-    """Perform dummy sentiment analysis on the input text.
+def sentiment_analysis_tool(review_text: str) -> str:
+    """Analyze whether a customer's review or complaint is positive, negative, or neutral.
 
     Args:
-        text: Input text string.
+        review_text: The full text of the customer review or complaint.
 
     Returns:
-        A placeholder sentiment analysis result string.
+        A string describing the overall sentiment of the review (e.g., positive/negative).
     """
-    return "Sentiment analysis result placeholder"
+    return "Dummy sentiment: positive (placeholder)."
 
-def design_doc_tool(pdf_content: str) -> str:
-    """Process dummy design document content.
+def design_doc_tool(pdf_or_description: str) -> str:
+    """Extract fitting dimensions from a design document or schematic and summarize them.
 
     Args:
-        pdf_content: String representation of PDF content.
+        pdf_or_description: Content from a design document, either in PDF text or detailed description.
 
     Returns:
-        A placeholder design doc processing response string.
+        A CSV-like string with all fitting dimensions found in the document.
     """
-    return "Design doc processing placeholder"
+    return "Dimensions: cabinet_height=90cm, cabinet_width=60cm, ... (dummy data)."
 
-def warranty_tool(question: str) -> str:
-    """Provide dummy warranty information response.
+def warranty_tool(product_question: str) -> str:
+    """Answer customer questions about refunds or warranties for specific products based on company policy.
 
     Args:
-        question: Customer question about warranty.
+        product_question: The customer’s text asking about refund or warranty (e.g., product name, policy question).
 
     Returns:
-        A placeholder warranty information string.
+        A string summarizing the relevant refund or warranty information for the given product.
     """
-    return "Warranty info placeholder"
+    return "Warranty: 12 months. Refundable within 30 days if in original packaging. (placeholder)."
 
 
 tools = [sentiment_analysis_tool, design_doc_tool, warranty_tool]
