@@ -2,7 +2,7 @@ import os
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 from langgraph.graph import MessagesState, StateGraph, START, END
-from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
+from langchain_core.messages import HumanMessage, SystemMessage, AIMessage, BaseMessage
 from langgraph.checkpoint.memory import MemorySaver
 from typing import TypedDict, List, Optional, Dict
 
@@ -12,8 +12,10 @@ class MessageDict(TypedDict):
     metadata: Optional[Dict]
 
 class OverallState(TypedDict):
-    messages: List[MessageDict]
+    messages: List[BaseMessage]
     pdf_bytes: Optional[bytes]
+    next: Optional[str]  # Add this
+
 
 load_dotenv()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
@@ -27,18 +29,21 @@ llm = ChatOpenAI(model="gpt-4o", openai_api_key=OPENAI_API_KEY)
 # Dummy implementations of specialized nodes
 def sentiment_node(state: OverallState):
     last_message = state["messages"][-1].content.lower()
-    # In real code, call GCP sentiment model here
     sentiment = "positive" if "good" in last_message else "negative or neutral"
-    return {"messages": [AIMessage(content=f"Sentiment analysis result: {sentiment}")]}
+    # Append AIMessage to existing history
+    return {
+        "messages": state["messages"] + [AIMessage(content=f"Sentiment analysis result: {sentiment}")]
+    }
 
 def design_node(state: OverallState):
-    # Stub: Call Gemini PDF endpoint and store/handle context here
-    return {"messages": [AIMessage(content="Design doc processed with extracted dimensions (dummy).")]}
+    return {
+        "messages": state["messages"] + [AIMessage(content="Design doc processed with extracted dimensions (dummy).")]
+    }
 
 def policy_node(state: OverallState):
-    # Stub: Call warranty/refund LLM model here
-    return {"messages": [AIMessage(content="Policy info: Warranty is 12 months standard (dummy).")]}
-
+    return {
+        "messages": state["messages"] + [AIMessage(content="Policy info: Warranty is 12 months standard (dummy).")]
+    }
 # ------------------------------
 # Classifier node
 # ------------------------------
@@ -87,30 +92,30 @@ def classifier_node(state: OverallState):
     # print(pdf_text_preview)
 
     classifier_prompt = f"""
-You are a routing classifier for customer tickets.
-Each ticket includes:
-- A user message (text input, can be empty)
-- An optional PDF document (text extracted from PDF)
+      You are a routing classifier for customer tickets.
+      Each ticket includes:
+      - A user message (text input, can be empty)
+      - An optional PDF document (text extracted from PDF)
 
-Classify the request into one of three categories:
-- 'sentiment' → if the user is giving a review, complaint, or feedback (including if a review is written in a PDF)
-- 'design' → if the content involves technical drawings, architectural schematics, or CAD-like documents
-- 'policy' → if the content involves warranty, refunds, or product policy
+      Classify the request into one of three categories:
+      - 'sentiment' → if the user is giving a review, complaint, or feedback (including if a review is written in a PDF)
+      - 'design' → if the content involves technical drawings, architectural schematics, or CAD-like documents
+      - 'policy' → if the content involves warranty, refunds, or product policy
 
 
-Rules:
-- Do NOT assume that every PDF is a design document.
-- If the user message is empty, classify based on PDF content.
-- If the PDF text or user message looks like feedback or a review, classify as 'sentiment'.
-- If the PDF looks like warranty or refund documentation, classify as 'policy'.
-- Otherwise, classify as 'design'.
-- Respond with exactly one word: sentiment, design, or policy.
+      Rules:
+      - Do NOT assume that every PDF is a design document.
+      - If the user message is empty, classify based on PDF content.
+      - If the PDF text or user message looks like feedback or a review, classify as 'sentiment'.
+      - If the PDF looks like warranty or refund documentation, classify as 'policy'.
+      - Otherwise, classify as 'design'.
+      - Respond with exactly one word: sentiment, design, or policy.
 
-User message:
-\"\"\"{user_msg}\"\"\"
+      User message:
+      \"\"\"{user_msg}\"\"\"
 
-PDF text preview:
-\"\"\"{pdf_text_preview}\"\"\"
+      PDF text preview:
+      \"\"\"{pdf_text_preview}\"\"\"
 
     """
 
@@ -120,7 +125,13 @@ PDF text preview:
     if classified not in ("sentiment", "design", "policy"):
         classified = "policy"
 
-    return {"next": classified}
+    # Remove PDF bytes if not a design document
+    out_state = dict(state)  # copy state
+    if classified != "design" and "pdf_bytes" in out_state:
+        del out_state["pdf_bytes"]
+
+    out_state["next"] = classified
+    return out_state
 
 
 
@@ -169,8 +180,25 @@ class RoutingAgent:
             with open(pdf_path, "rb") as f:
                 pdf_bytes = f.read()
 
-        messages = [HumanMessage(content=message)]
         config = {"configurable": {"thread_id": thread_id}}
 
-        result = self.graph.invoke({"messages": messages, "pdf_bytes": pdf_bytes}, config)
+       # Get existing state from checkpoint
+        existing_state = self.graph.get_state(config)
+        
+        # If there's existing state, append to existing messages
+        if existing_state and existing_state.values.get("messages"):
+            existing_messages = existing_state.values["messages"]
+            new_messages = existing_messages + [HumanMessage(content=message)]
+        else:
+            # First message in thread
+            new_messages = [HumanMessage(content=message)]
+
+        # Invoke with accumulated messages
+        result = self.graph.invoke({
+            "messages": new_messages, 
+            "pdf_bytes": pdf_bytes
+        }, config)
+
+        print("Current OverallState:", result)
+
         return result["messages"][-1].content

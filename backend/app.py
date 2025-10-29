@@ -20,7 +20,8 @@ def submit_ticket():
         pdf_file.save(temp_file.name)
         saved_pdf_path = temp_file.name
 
-    thread_id = request.form.get("thread_id", "default_thread")
+    thread_id = "fixed_thread_id"
+
     response = agent.handle_message(user_message, thread_id, pdf_path=saved_pdf_path)
 
     # Optionally delete temp file after processing
