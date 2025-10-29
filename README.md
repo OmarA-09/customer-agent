@@ -43,6 +43,7 @@ can have 3 products, feed the model it before it takes enquries
 long form memory in DB not needed.
 
 
+https://cloud.google.com/natural-language/docs/basics#interpreting_sentiment_analysis_values
 
 https://console.cloud.google.com/vertex-ai/publishers/google/model-garden/language-v1-analyze-sentiment?project=my-second-project-475209
 

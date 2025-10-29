@@ -23,6 +23,9 @@ def sentiment_node(state: OverallState):
     document = {"type_": language_v1.Document.Type.PLAIN_TEXT, "content": content}
 
     response = client.analyze_sentiment(request={"document": document})
+    # print("") # for logging
+    # print(response)
+    # print("")
     sentiment = response.document_sentiment
 
     score = sentiment.score
