@@ -83,11 +83,11 @@ const ChatBox: React.FC = () => {
   };
 
   return (
-    <div style={{ width: 400, margin: "auto" }}>
+    <div style={{ width: 600, margin: "auto" }}>
       <div
         ref={scrollRef}
         style={{
-          height: 350,
+          height: 700,
           overflowY: "auto",
           border: "1px solid #ccc",
           padding: 10,
@@ -125,7 +125,7 @@ const ChatBox: React.FC = () => {
       <form onSubmit={handleSend}>
         <textarea
           rows={3}
-          style={{ width: "100%", padding: 8, fontSize: 14, boxSizing: "border-box" }}
+          style={{ width: "100%", height: 150, padding: 8, fontSize: 14, boxSizing: "border-box" }}
           placeholder="Type your message..."
           value={chatInput}
           onChange={handleInputChange}

@@ -1,21 +1,15 @@
 import os
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
-from langgraph.graph import MessagesState, StateGraph, START, END
+from langgraph.graph import MessagesState, StateGraph, START, END, add_messages
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage, BaseMessage
 from langgraph.checkpoint.memory import MemorySaver
-from typing import TypedDict, List, Optional, Dict
-
-# Define a composite state TypedDict with messages and optional pdf_bytes
-class MessageDict(TypedDict):
-    content: str
-    metadata: Optional[Dict]
+from typing import TypedDict, List, Optional, Dict, Annotated
 
 class OverallState(TypedDict):
-    messages: List[BaseMessage]
+    messages: Annotated[List[BaseMessage], add_messages]  # Auto-append with reducer
     pdf_bytes: Optional[bytes]
-    next: Optional[str]  # Add this
-
+    next: Optional[str]
 
 load_dotenv()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
@@ -32,23 +26,111 @@ def sentiment_node(state: OverallState):
     sentiment = "positive" if "good" in last_message else "negative or neutral"
     # Append AIMessage to existing history
     return {
-        "messages": state["messages"] + [AIMessage(content=f"Sentiment analysis result: {sentiment}")]
+        "messages": [AIMessage(content=f"Sentiment analysis result: {sentiment}")]
     }
 
 def design_node(state: OverallState):
     return {
-        "messages": state["messages"] + [AIMessage(content="Design doc processed with extracted dimensions (dummy).")]
+        "messages": [AIMessage(content="Design doc processed with extracted dimensions (dummy).")]
     }
 
 def policy_node(state: OverallState):
-    return {
-        "messages": state["messages"] + [AIMessage(content="Policy info: Warranty is 12 months standard (dummy).")]
-    }
+    """Handles warranty and refund policy questions using a specialized LLM
+    with general retail policy context based on item price tiers."""
+    
+    # General retail policy knowledge base
+    policy_context = """You are a customer service agent for a major online retailer (similar to Amazon/Argos).
+      We sell thousands of products across all categories. Use these general policies:
+      
+      REFUND POLICY (Based on Item Price):
+      
+      Under £50:
+      - 30-day return window from delivery date
+      - Full refund if unopened/unused with original packaging
+      - 80% refund if opened but in resaleable condition
+      - Free return shipping
+      
+      £50 - £200:
+      - 30-day return window from delivery date
+      - Full refund if unopened/unused with original packaging
+      - 70% refund if opened but in resaleable condition
+      - Customer pays return shipping (unless faulty)
+      
+      Over £200:
+      - 60-day return window from delivery date
+      - Full refund if unopened/unused with original packaging
+      - 60% refund if opened but in resaleable condition
+      - Free return shipping for items over £500
+      - Customer pays return shipping for £200-£500 (unless faulty)
+      
+      NO REFUNDS for:
+      - Personalized/custom items
+      - Hygiene products once opened (underwear, earbuds, cosmetics)
+      - Digital downloads or software after activation
+      - Items damaged by customer misuse
+      - Items without proof of purchase
+      
+      WARRANTY COVERAGE (Based on Item Price):
+      
+      Under £50:
+      - 12-month manufacturer warranty
+      - Covers manufacturing defects only
+      - No accidental damage coverage
+      
+      £50 - £200:
+      - 12-month manufacturer warranty
+      - Optional extended warranty available (£10-30 depending on item)
+      - Covers manufacturing defects and hardware failures
+      
+      Over £200:
+      - 24-month manufacturer warranty (EU law compliance)
+      - Optional extended warranty available (£30-100)
+      - Covers manufacturing defects, hardware failures, and some wear-and-tear
+      
+      WARRANTY VOID IF:
+      - Physical damage (drops, liquid damage, impact)
+      - Unauthorized repairs or modifications
+      - Normal wear and tear (for items under £200)
+      - Used for commercial purposes (if sold for personal use)
+      - Proof of purchase cannot be provided
+      
+      FAULTY ITEMS:
+      - Full refund or replacement within 30 days of receipt
+      - After 30 days: repair or replacement (no refund)
+      - We cover ALL return shipping for faulty items
+      - Faults must be reported within warranty period
+      
+      PROCESS:
+      - Refunds processed within 3-5 business days after receiving return
+      - Returns initiated online via account or customer service
+      - Order number or receipt required for all returns/warranty claims
+      
+      IMPORTANT RULES:
+      - Always ask for: item category, price, purchase date, and condition
+      - Be helpful but firm about policy limits
+      - If customer mentions damage, determine if it's manufacturing defect or user damage
+      - Escalate to supervisor if customer spent over £1000 or has special circumstances
+    """
+    
+    # Get the user's question from the most recent HumanMessage
+    user_message = next((m.content for m in reversed(state["messages"]) 
+                        if isinstance(m, HumanMessage)), "")
+    
+    # Create policy-specialized LLM call
+    policy_messages = [
+        SystemMessage(content=policy_context),
+        HumanMessage(content=user_message)
+    ]
+    
+    policy_response = llm.invoke(policy_messages)
+    
+    # Only return new message - pdf_bytes persists automatically
+    return {"messages": [policy_response]}
+
 # ------------------------------
 # Classifier node
 # ------------------------------
 
-# --- classifier node (normal node) ---
 import io
 from PyPDF2 import PdfReader
 import pdf2image
@@ -82,7 +164,7 @@ def extract_text_from_pdf(pdf_bytes: bytes, max_chars: int = 800) -> str:
     
 
 def classifier_node(state: OverallState):
-    user_msg = state["messages"][-1].content
+    all_msgs = "\n".join([m.content for m in state["messages"] if hasattr(m, "content")])
     pdf_bytes = state.get("pdf_bytes")
 
     # Extract PDF text if available
@@ -111,28 +193,27 @@ def classifier_node(state: OverallState):
       - Otherwise, classify as 'design'.
       - Respond with exactly one word: sentiment, design, or policy.
 
-      User message:
-      \"\"\"{user_msg}\"\"\"
-
+      Here is the full chat so far:
+      {all_msgs}
+      
       PDF text preview:
       \"\"\"{pdf_text_preview}\"\"\"
 
     """
 
-    reply = llm.invoke([HumanMessage(content=classifier_prompt)])
-    classified = reply.content.strip().lower()
+    response = llm.invoke([HumanMessage(content=classifier_prompt)])
+    classified = response.content.strip().lower()
 
     if classified not in ("sentiment", "design", "policy"):
         classified = "policy"
 
-    # Remove PDF bytes if not a design document
-    out_state = dict(state)  # copy state
-    if classified != "design" and "pdf_bytes" in out_state:
-        del out_state["pdf_bytes"]
-
-    out_state["next"] = classified
-    return out_state
-
+    # Build return dict - only keep PDF for design tasks
+    result = {"next": classified}
+    
+    if classified != "design":
+        result["pdf_bytes"] = None  # Explicitly clear it for non-design routes
+    
+    return result
 
 
 def route_from_classifier(state):
@@ -141,7 +222,6 @@ def route_from_classifier(state):
 # ------------------------------
 # Build LangGraph
 # ------------------------------
-
 
 builder = StateGraph(OverallState)
 builder.add_node("classifier", classifier_node)
@@ -182,7 +262,7 @@ class RoutingAgent:
 
         config = {"configurable": {"thread_id": thread_id}}
 
-       # Get existing state from checkpoint
+        # Get existing state from checkpoint
         existing_state = self.graph.get_state(config)
         
         # If there's existing state, append to existing messages
