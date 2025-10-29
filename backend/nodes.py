@@ -5,14 +5,40 @@ import pdf2image
 import pytesseract
 from PIL import Image
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
+from custom_state import OverallState
 from langchain_openai import ChatOpenAI
 
-# Sentiment analysis node
-def sentiment_node(state):
-    last_message = state["messages"][-1].content.lower()
-    sentiment = "positive" if "good" in last_message else "negative or neutral"
-    return {"messages": [AIMessage(content=f"Sentiment analysis result: {sentiment}")]}
-    
+from google.cloud import language_v1
+import six
+
+def sentiment_node(state: OverallState):
+    # Extract the last human message text
+    content = next((m.content for m in reversed(state["messages"]) if isinstance(m, HumanMessage)), "")
+
+    client = language_v1.LanguageServiceClient()
+
+    if isinstance(content, six.binary_type):
+        content = content.decode("utf-8")
+
+    document = {"type_": language_v1.Document.Type.PLAIN_TEXT, "content": content}
+
+    response = client.analyze_sentiment(request={"document": document})
+    sentiment = response.document_sentiment
+
+    score = sentiment.score
+    magnitude = sentiment.magnitude
+
+    # Simple classification based on score, customize thresholds as needed
+    if score >= 0.25:
+        label = "Positive"
+    elif score <= -0.25:
+        label = "Negative"
+    else:
+        label = "Neutral"
+
+    result_text = f"Sentiment analysis result: Score={score:.2f}, Magnitude={magnitude:.2f}, Classified as {label}"
+
+    return {"messages": [AIMessage(content=result_text)]}
 
 # Design document processing node (dummy)
 def design_node(state):

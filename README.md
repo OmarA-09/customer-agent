@@ -41,3 +41,14 @@ send to maybe
 can have 3 products, feed the model it before it takes enquries 
 
 long form memory in DB not needed.
+
+
+
+https://console.cloud.google.com/vertex-ai/publishers/google/model-garden/language-v1-analyze-sentiment?project=my-second-project-475209
+
+
+# challenges, feedback, limitations
+
+- sentiment_data.csv could have been used, had text sentiment analysis not been deprecated
+  on GCP AutoML!
+

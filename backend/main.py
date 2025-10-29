@@ -2,6 +2,7 @@ import os
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage, BaseMessage
+from custom_state import OverallState
 from langgraph.graph import StateGraph, START, END, add_messages
 from langgraph.checkpoint.memory import MemorySaver
 from typing import TypedDict, List, Optional, Annotated
@@ -14,10 +15,10 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 llm = ChatOpenAI(model="gpt-4o", openai_api_key=OPENAI_API_KEY)
 
-class OverallState(TypedDict):
-    messages: Annotated[List[BaseMessage], add_messages]  # Auto-append with reducer
-    pdf_bytes: Optional[bytes]
-    next: Optional[str]
+# class OverallState(TypedDict):
+#     messages: Annotated[List[BaseMessage], add_messages]  # Auto-append with reducer
+#     pdf_bytes: Optional[bytes]
+#     next: Optional[str]
 
 # Build the LangGraph graph with nodes and edges
 builder = build_graph(OverallState, sentiment_node, design_node, policy_node, classifier_node)

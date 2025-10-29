@@ -212,3 +212,5 @@ ageny_memory.py
 state_schema.py
 */pdfs
 routing_agent.py
+sentiment_data.csv
+gcloudNLKey.json
