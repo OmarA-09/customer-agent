@@ -1,14 +1,16 @@
 from flask import Flask, request, jsonify
-from routing_agent import RoutingAgent
+from agent import RoutingAgent
 from flask_cors import CORS
 import tempfile
 import os
+
+# Import pre-built agent instance directly from main.py
+from main import agent
 
 app = Flask(__name__)
 
 CORS(app, origins=["http://localhost:5173"])
 
-agent = RoutingAgent()
 
 @app.route("/submit-ticket", methods=["POST"])
 def submit_ticket():
