@@ -1,6 +1,8 @@
 from flask import Flask, request, jsonify
 from routing_agent import RoutingAgent
 from flask_cors import CORS
+import tempfile
+import os
 
 app = Flask(__name__)
 
@@ -8,16 +10,23 @@ CORS(app, origins=["http://localhost:5173"])
 
 agent = RoutingAgent()
 
-@app.route('/submit-ticket', methods=['POST'])
+@app.route("/submit-ticket", methods=["POST"])
 def submit_ticket():
-    data = request.json
-    thread_id = data.get('thread_id', 'default_thread')  # get or create a thread_id
-    user_message = data.get('message', '')
-    if not user_message:
-        return jsonify({"error": "No message provided"}), 400
+    user_message = request.form.get("message", "")
+    pdf_file = request.files.get("pdf", None)
+    saved_pdf_path = None
+    if pdf_file:
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
+        pdf_file.save(temp_file.name)
+        saved_pdf_path = temp_file.name
 
-    # Pass message and thread_id to agent for processing with memory
-    response = agent.handle_message(user_message, thread_id)
+    thread_id = request.form.get("thread_id", "default_thread")
+    response = agent.handle_message(user_message, thread_id, pdf_path=saved_pdf_path)
+
+    # Optionally delete temp file after processing
+    if saved_pdf_path and os.path.exists(saved_pdf_path):
+        os.remove(saved_pdf_path)
+
     return jsonify({"response": response})
 
 if __name__ == "__main__":

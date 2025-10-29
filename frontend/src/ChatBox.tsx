@@ -7,6 +7,7 @@ type Message = {
 
 const ChatBox: React.FC = () => {
   const [chatInput, setChatInput] = useState("");
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [status, setStatus] = useState("");
 
@@ -23,23 +24,47 @@ const ChatBox: React.FC = () => {
     setChatInput(e.target.value);
   };
 
+  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0){
+      setPdfFile(e.target.files[0]);
+    } else {
+      setPdfFile(null);
+    }
+  }
+  
+
   const handleSend = async (e: FormEvent) => {
     e.preventDefault();
-    if (!chatInput.trim()) return;
-    setStatus("Sending...");
-    // Display user message immediately
-    setMessages((prev) => [...prev, { sender: "user", text: chatInput }]);
-    const userMessage = chatInput;
-    setChatInput("");
 
-    // can pass in thread id here 
+    // Require either message or PDF
+    if (!chatInput.trim() && !pdfFile) {
+      setStatus("Please enter a message or upload a PDF.");
+      return;
+    }
+
+    setStatus("Sending...");
+
+    // Show user message immediately if present
+    if (chatInput.trim()) {
+      setMessages((prev) => [...prev, { sender: "user", text: chatInput }]);
+    }
+    if (pdfFile) {
+      setMessages((prev) => [
+        ...prev,
+        { sender: "user", text: `📄 Uploaded file: ${pdfFile.name}` }
+      ]);
+    }
+
+    const formData = new FormData();
+    formData.append("message", chatInput);
+    if (pdfFile) {
+      formData.append("pdf", pdfFile);
+    }
+
     try {
       const res = await fetch("http://127.0.0.1:5000/submit-ticket", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ message: userMessage }),
+        body: formData
       });
 
       if (!res.ok) {
@@ -47,8 +72,10 @@ const ChatBox: React.FC = () => {
       }
 
       const data = await res.json();
-      // Assume response format is { response: string }
+      // Add agent response message
       setMessages((prev) => [...prev, { sender: "agent", text: data.response }]);
+      setChatInput("");
+      setPdfFile(null);
       setStatus("");
     } catch (error) {
       setStatus("Error sending message");
@@ -104,12 +131,23 @@ const ChatBox: React.FC = () => {
           onChange={handleInputChange}
           disabled={status === "Sending..."}
         />
+        <input
+          type="file"
+          accept=".pdf"
+          onChange={handleFileChange}
+          disabled={status === "Sending..."}
+          style={{ marginTop: 8 }}
+        />
         <button type="submit" style={{ marginTop: 8, width: "100%", padding: 10, fontSize: 16 }}>
           Send
         </button>
       </form>
 
-      {status && <div style={{ marginTop: 10, textAlign: "center", color: "red" }}>{status}</div>}
+      {status && (
+        <div style={{ marginTop: 10, textAlign: "center", color: "red" }}>
+          {status}
+        </div>
+      )}
     </div>
   );
 };
