@@ -19,3 +19,4 @@ pdf2image
 Pillow
 
 google-cloud-language
+google-genai

@@ -43,9 +43,67 @@ def sentiment_node(state: OverallState):
 
     return {"messages": [AIMessage(content=result_text)]}
 
-# Design document processing node (dummy)
-def design_node(state):
-    return {"messages": [AIMessage(content="Design doc processed with extracted dimensions (dummy).")]}
+import logging
+from google import genai
+from google.genai import types
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+def design_node(state: OverallState):
+    logger.info("design_node invoked")
+
+    pdf_bytes = state.get("pdf_bytes")
+    if not pdf_bytes:
+        logger.warning("No PDF document found in the state.")
+        return {"messages": [AIMessage(content="No PDF document found in the state to extract from.")]}
+
+    logger.info(f"PDF bytes size: {len(pdf_bytes)} bytes")
+
+    prompt = (
+        "You are an expert document extraction assistant.\n"
+        "Extract structured data such as the table of contents, border details, "
+        "and bill of materials from the PDF document provided. Return ONLY valid JSON."
+    )
+    logger.info(f"Prompt for Gemini: {prompt}")
+
+    try:
+        client = genai.Client()
+        logger.info("GenAI client initialized")
+
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=[
+                types.Part.from_bytes(data=pdf_bytes, mime_type="application/pdf"),
+                types.Part.from_text(text=prompt),
+            ],
+        )
+
+        logger.info("Received response from Gemini model")
+        logger.debug(f"Response text: {response.text}")
+
+        # Try printing .text property explicitly
+        extracted_text = getattr(response, "text", None)
+        if extracted_text:
+            logger.info(f"Extracted text length: {len(extracted_text)}")
+            print(extracted_text)
+        else:
+            logger.warning("Response.text attribute is empty or missing.")
+            # You can try to iterate parts if available
+            try:
+                parts = response.candidates[0].content.parts
+                for part in parts:
+                    print(part.text or repr(part.inline_data))
+            except Exception as e:
+                logger.error(f"Failed to read parts from response: {e}")
+
+        return {"messages": [AIMessage(content=f"Extracted Data:\n{response.text}")]}
+
+    except Exception as e:
+        logger.error(f"Exception during Gemini call: {e}", exc_info=True)
+        return {"messages": [AIMessage(content=f"Failed to extract data: {str(e)}")]}
+
 
 
 # Policy node using specialized LLM call
