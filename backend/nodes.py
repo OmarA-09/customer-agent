@@ -7,8 +7,11 @@ from PIL import Image
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 from custom_state import OverallState
 from langchain_openai import ChatOpenAI
-
 from google.cloud import language_v1
+from google import genai
+from google.genai import types
+import re
+import json
 import six
 
 def sentiment_node(state: OverallState):
@@ -43,67 +46,47 @@ def sentiment_node(state: OverallState):
 
     return {"messages": [AIMessage(content=result_text)]}
 
-import logging
-from google import genai
-from google.genai import types
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 def design_node(state: OverallState):
-    logger.info("design_node invoked")
-
     pdf_bytes = state.get("pdf_bytes")
-    if not pdf_bytes:
-        logger.warning("No PDF document found in the state.")
-        return {"messages": [AIMessage(content="No PDF document found in the state to extract from.")]}
+    messages = state.get("messages", [])
 
-    logger.info(f"PDF bytes size: {len(pdf_bytes)} bytes")
+    # Extract all previous messages content concatenated
+    prev_texts = "\n".join(msg.content for msg in messages if hasattr(msg, "content") and msg.content.strip())
 
-    prompt = (
-        "You are an expert document extraction assistant.\n"
-        "Extract structured data such as the table of contents, border details, "
-        "and bill of materials from the PDF document provided. Return ONLY valid JSON."
-    )
-    logger.info(f"Prompt for Gemini: {prompt}")
+    # Extract latest user query
+    user_query = ""
+    for msg in reversed(messages):
+        if hasattr(msg, "content") and msg.content.strip():
+            user_query = msg.content.strip()
+            break
+
+    client = genai.Client()
+
+    if pdf_bytes:
+        # Send PDF + user prompt
+        prompt = f"You are an expert in analyzing architectural drawings and schematics. Extract json and return JSON back only. \nUser query: {user_query}"
+        contents = [
+            types.Part.from_bytes(data=pdf_bytes, mime_type="application/pdf"),
+            types.Part.from_text(text=prompt),
+        ]
+    else:
+        # No PDF, send previous messages + user query as context
+        prompt = f"Previous conversation and extracted data:\n{prev_texts}\n\nUser query: {user_query}"
+        contents = [
+            types.Part.from_text(text=prompt)
+        ]
 
     try:
-        client = genai.Client()
-        logger.info("GenAI client initialized")
-
         response = client.models.generate_content(
             model="gemini-2.5-flash",
-            contents=[
-                types.Part.from_bytes(data=pdf_bytes, mime_type="application/pdf"),
-                types.Part.from_text(text=prompt),
-            ],
+            contents=contents,
         )
-
-        logger.info("Received response from Gemini model")
-        logger.debug(f"Response text: {response.text}")
-
-        # Try printing .text property explicitly
-        extracted_text = getattr(response, "text", None)
-        if extracted_text:
-            logger.info(f"Extracted text length: {len(extracted_text)}")
-            print(extracted_text)
-        else:
-            logger.warning("Response.text attribute is empty or missing.")
-            # You can try to iterate parts if available
-            try:
-                parts = response.candidates[0].content.parts
-                for part in parts:
-                    print(part.text or repr(part.inline_data))
-            except Exception as e:
-                logger.error(f"Failed to read parts from response: {e}")
-
-        return {"messages": [AIMessage(content=f"Extracted Data:\n{response.text}")]}
+        return {"messages": [AIMessage(content=response.text)]}
 
     except Exception as e:
-        logger.error(f"Exception during Gemini call: {e}", exc_info=True)
-        return {"messages": [AIMessage(content=f"Failed to extract data: {str(e)}")]}
-
+        return {"messages": [AIMessage(content=f"Error: {e}")]}
 
 
 # Policy node using specialized LLM call
