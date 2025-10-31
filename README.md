@@ -92,6 +92,7 @@ If you want to run the project in **LangSmith Studio**, you should disable the c
 
 ## Improvements
 
+- Improve the system prompts. Play with the temperature of the LLM. EG warrantee 
 - Avoid passing PDFBYTES into messages -> perhaps a custom reducer function
 - Having a context window or "summarise all prev convo" selectively.
 - structures responses with Langgraph - useful for JSON output
