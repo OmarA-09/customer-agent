@@ -28,11 +28,14 @@ use_custom_checkpoint = os.getenv("USE_CUSTOM_CHECKPOINT", "true").lower() == "t
 if use_custom_checkpoint:
     memory = MemorySaver()
     graph_with_checkpoint = builder.compile(checkpointer=memory)
+    # Initialize the routing agent with the compiled graph
+    agent = RoutingAgent(graph=graph_with_checkpoint)
 else:
     graph_no_checkpoint = builder.compile()
+    # Initialize the routing agent with the compiled graph
+    agent = RoutingAgent(graph=graph_no_checkpoint)
 
-# Initialize the routing agent with the compiled graph
-agent = RoutingAgent(graph=graph_with_checkpoint)
+
 
 # Example usage (uncomment to use):
 # response = agent.handle_message("Hello, I want to ask about warranty.", thread_id="thread-1")

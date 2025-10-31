@@ -5,8 +5,7 @@ langsmith
 langchain-community
 langchain-core
 langchain-openai
-notebook
-trustcall
+# trustcall
 langgraph-cli[inmem]
 
 flask
