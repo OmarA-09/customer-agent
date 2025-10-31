@@ -16,22 +16,22 @@ This project implements a customer-facing interface where customers can submit a
 
 3. **Warranty/Refund Questions**: Sent to a third AI model trained on company policy related to three sample products, covering warranty length and void conditions.
 
----
 
 ## Architecture & Components
 
 - **Frontend**: React-based chat UI with file upload (PDF) capability and markdown support from AI responses.
 
-- **Backend**: Python backend using LangGraph to build a StateGraph with nodes for classification, sentiment, design, and policy processing. Routes messages dynamically based on detected intent.
+- **Backend**: Python backend using LangGraph to build a `StateGraph` with nodes for classification, sentiment, design, and policy processing. Routes messages dynamically based on detected intent.
+
+- **Custom State Management**: The project uses a custom `OverallState` typed dict combined with a `reducer` function to append messages to the conversation state automatically.
 
 - **AI Models**:
-  - GCP AutoML Sentiment Analysis for reviews (though deprecated, referenced for context).
+  - OpenAI model 4o for routing 
+  - VertexAI Model Garden Sentiment Analysis model for reviews (AutoML sentiment training deprecated, referenced for context).
   - Gemini for design document analysis & question answering.
-  - Custom policy model for warranty/refund questions.
+  - OpenAI model 4o for warranty/refund questions.
 
-- **Graph & Agent**: RoutingAgent uses LangGraph runtime with optional memory checkpointing.
-
----
+- **Graph & Agent**: `RoutingAgent` uses LangGraph runtime with optional memory checkpointing. The custom overall state and reducer enable seamless state mutation and message handling.
 
 ## Environment Configuration
 
@@ -44,8 +44,6 @@ If you want to run the project in **LangSmith Studio**, you should disable the c
 `USE_CUSTOM_CHECKPOINT=false`
 
 
----
-
 ## Notes and References
 
 - Sentiment analysis values guide:  
@@ -54,15 +52,12 @@ If you want to run the project in **LangSmith Studio**, you should disable the c
 - GCP Vertex AI Example Sentiment Model:  
   https://console.cloud.google.com/vertex-ai/publishers/google/model-garden/language-v1-analyze-sentiment?project=my-second-project-475209
 
----
 
 ## Challenges and Limitations
 
 - GCP AutoML sentiment analysis API has been deprecated, preventing use of `sentiment_data.csv` or direct text sentiment models.
 - Long-term memory persistence was not required; the system uses in-memory state and message history for context.
 - Flexible routing required careful design of multi-turn flows, especially for document querying.
-
----
 
 ## Git & Security
 

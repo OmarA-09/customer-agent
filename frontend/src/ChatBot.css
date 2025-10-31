@@ -1,3 +1,14 @@
+html,
+body {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  /* prevent page scroll */
+  background: #c2c2c2;
+}
+
 .app-root {
   min-height: 100vh;
   display: flex;
@@ -7,19 +18,9 @@
   background: #c2c2c2;
 }
 
-html,
-body {
-  height: 100%;
-  width: 100%;
-  margin: 0;
-  padding: 0;
-  overflow: hidden;
-  /* Prevent page scrolling */
-}
-
 .chatbot-container {
   width: 100%;
-  max-width: 590px;
+  max-width: 600px;
   height: 80vh;
   display: flex;
   flex-direction: column;
@@ -89,6 +90,24 @@ body {
   max-width: 75%;
 }
 
+.chatbot-bubble pre, .chatbot-bubble code {
+  white-space: pre-wrap;     /* Line wrap instead of horizontal scroll */
+  word-break: break-all;     
+}
+
+
+.chatbot-dropzone {
+  border: 2px dashed #ccc;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 10px;
+  text-align: center;
+  color: #4a4a4a;
+  font-style: italic;
+  user-select: none;
+  cursor: pointer;
+}
+
 .chatbot-form {
   display: flex;
   flex-direction: column;
@@ -143,8 +162,26 @@ body {
   text-align: center;
   color: #cb4747;
   font-weight: 500;
-  letter-spacing: .1em;
+  letter-spacing: 0.1em;
   font-size: 15px;
+}
+
+.bubble-remove-btn {
+  position: absolute;
+  top: -8px;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  font-size: 20px;
+  color: #999;
+}
+
+.bubble-remove-btn.right {
+  right: 4px;
+}
+
+.bubble-remove-btn.left {
+  left: 4px;
 }
 
 ::-webkit-scrollbar {
