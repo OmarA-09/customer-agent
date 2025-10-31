@@ -26,7 +26,7 @@ def submit_ticket():
 
     response = agent.handle_message(user_message, thread_id, pdf_path=saved_pdf_path)
 
-    # Optionally delete temp file after processing
+    # Optionally delete temp file path after processing
     if saved_pdf_path and os.path.exists(saved_pdf_path):
         os.remove(saved_pdf_path)
 
