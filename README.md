@@ -28,7 +28,7 @@ OPENAI_API_KEY
 <!-- Flase if using Langgraph Studio, false otherwise -->
 USE_CUSTOM_CHECKPOINT
 <!-- for sentiment analysis -->
-GOOGLE_APPLICATION_CREDENTIALS=gcloudNLKey.json
+GOOGLE_APPLICATION_CREDENTIALS
 <!-- API key for Gemini model access for design documents -->
 GEMINI_API_KEY
 
